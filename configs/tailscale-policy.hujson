@@ -1,0 +1,81 @@
+// ZTNA lab: Tailscale policy file (least privilege)
+// Status: superseded by the move to self-hosted NetBird (see docs/netbird-migration.md). Kept for reference.
+// Replaces the default allow-all policy. Paste the whole file into
+// Access controls → JSON editor at console.tailscale.com, then Save.
+//
+// Who is who:
+//   autogroup:admin  Will's own signed-in devices (laptop/phone), the remote-admin path
+//   tag:admin        the management Kali (VM 103)
+//   tag:server       linuxserver (VM 101); it also routes 10.20.20.0/24 into the tailnet
+//   (kaliattack is deliberately NOT in the tailnet. It's the untrusted device.)
+{
+	// Named hosts, so rules read like intent rather than IPs.
+	"hosts": {
+		"keycloak":    "10.20.20.10",
+		"wazuh":       "10.20.20.20",
+		"servers-net": "10.20.20.0/24",
+	},
+
+	// Only tailnet admins can apply these tags to a device.
+	"tagOwners": {
+		"tag:admin":  ["autogroup:admin"],
+		"tag:server": ["autogroup:admin"],
+	},
+
+	// linuxserver's subnet route is approved automatically, but only for the Servers network.
+	"autoApprovers": {
+		"routes": {
+			"10.20.20.0/24": ["tag:server"],
+		},
+	},
+
+	// Default deny: anything not granted here is blocked. There is NO allow-all rule.
+	"grants": [
+		// Admins can SSH to tagged servers.
+		{
+			"src": ["autogroup:admin", "tag:admin"],
+			"dst": ["tag:server"],
+			"ip":  ["tcp:22"],
+		},
+		// Admins can reach the Keycloak admin console via the subnet route.
+		{
+			"src": ["autogroup:admin", "tag:admin"],
+			"dst": ["keycloak"],
+			"ip":  ["tcp:8080"],
+		},
+		// Admins can reach the Wazuh dashboard via the subnet route.
+		{
+			"src": ["autogroup:admin", "tag:admin"],
+			"dst": ["wazuh"],
+			"ip":  ["tcp:443"],
+		},
+		// Note: there is no rule letting servers start connections to anything.
+	],
+
+	// Tailscale SSH: admins must re-confirm their identity in the browser
+	// ("check" mode) at most every 12 hours. This is continuous verification, not one-time login.
+	"ssh": [
+		{
+			"action":      "check",
+			"checkPeriod": "12h",
+			"src":         ["autogroup:admin"],
+			"dst":         ["tag:server"],
+			"users":       ["autogroup:nonroot", "root"],
+		},
+	],
+
+	// Policy tests: Tailscale refuses to save the file if any of these fail.
+	// They prove the policy does what this file claims. Screenshot them for the writeup.
+	"tests": [
+		{
+			"src":    "tag:admin",
+			"accept": ["tag:server:22", "keycloak:8080", "wazuh:443"],
+			"deny":   ["tag:server:80", "keycloak:22", "wazuh:1514", "10.20.20.30:22"],
+		},
+		{
+			// Servers must not be able to reach admin devices (no reverse path).
+			"src":  "tag:server",
+			"deny": ["tag:admin:22", "tag:server:22", "keycloak:8080"],
+		},
+	],
+}

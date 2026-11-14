@@ -1,0 +1,25 @@
+# Never commit secrets or raw exports from the lab
+*.key
+*.pem
+*.p12
+*.pfx
+*.env
+.env
+# OPNsense configuration backups (contain password hashes and certificate keys)
+config-*.xml
+*.xml
+# Keycloak realm exports (contain client secrets)
+*realm*.json
+*-export*.json
+# Assessed university documents (publish a summary instead)
+*.docx
+*.pptx
+*.pdf
+
+# Social media drafts (the graphic is built from images/)
+linkedin/
+
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store
